@@ -7,16 +7,13 @@ from supertokens_python import get_all_cors_headers
 from supertokens_python.framework.fastapi import get_middleware
 
 from config.supertokens import init_supertokens
-from routers.allow_list import router as allow_list_router
 
-load_dotenv()
+load_dotenv(dotenv_path=".env.dev",override=True)
 
 init_supertokens()
 
 app = FastAPI()
 app.add_middleware(get_middleware())
-
-app.include_router(allow_list_router)
 
 app.add_middleware(
     CORSMiddleware,

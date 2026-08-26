@@ -2,16 +2,15 @@ import os
 from dotenv import load_dotenv
 
 from supertokens_python import init, InputAppInfo, SupertokensConfig
-from supertokens_python.recipe import passwordless, session, dashboard, emailverification, usermetadata
-from supertokens_python.recipe.passwordless import ContactEmailOrPhoneConfig, InputOverrideConfig
+from supertokens_python.recipe import passwordless, session, dashboard, usermetadata
+from supertokens_python.recipe.passwordless import ContactEmailOrPhoneConfig
 
-from helpers.allow_list import override_passwordless_apis
 
-load_dotenv()
+load_dotenv(dotenv_path=".env.dev")
 def init_supertokens():
     init(
         app_info=InputAppInfo(
-            app_name="Block Monster Software",
+            app_name="Cocktail App",
             api_domain=os.environ.get("API_DOMAIN"),
             website_domain=os.environ.get("WEBSITE_DOMAIN"),
             api_base_path="/auth",
@@ -28,14 +27,10 @@ def init_supertokens():
             passwordless.init(
                 flow_type="USER_INPUT_CODE",
                 contact_config=ContactEmailOrPhoneConfig(),
-                override=InputOverrideConfig(
-                    apis=override_passwordless_apis,
-                ),
             ),
-            emailverification.init(mode='REQUIRED'),
             dashboard.init(
                 admins=["danhoward22@gmail.com"],
             ),
         ],
-        mode='asgi' # use wsgi if you are running using gunicorn
+        mode='asgi'
     )

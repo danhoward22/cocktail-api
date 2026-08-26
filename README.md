@@ -1,6 +1,6 @@
-# cocktail-auth
+# cocktail-api
 
-Python auth server for the Cocktail App, built with FastAPI and SuperTokens.
+Python api server for the Cocktail App, built with FastAPI and SuperTokens.
 
 ## Tech Stack
 

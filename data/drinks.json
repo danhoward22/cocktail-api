@@ -1,0 +1,18 @@
+[
+  {"id":1, "name":"Manhattan", "notes":"Stir, serve up.", "source":"", "user_id":null},
+  {"id":2, "name":"Vesper", "notes":"Stir, serve up.", "source":"", "user_id":null},
+  {"id":3, "name":"Martini", "notes":"Stir, serve up.", "source":"", "user_id":null},
+  {"id":4, "name":"Old Fashioned", "notes":"Build in glass with ice.", "source":"", "user_id":null},
+  {"id":5, "name":"Mai Tai",
+    "notes":"Shake, serve on rocks. Arrange mint and spent lime shell like an island with a palm tree.",
+    "source":"", "user_id":null
+  },
+  {"id":6, "name":"Mojito",
+    "notes":"Shake rum, lime, syrup, and mint. Pour over ice in a Collins glass. Top with club soda.",
+    "source":"", "user_id":null
+  },
+  {"id":7, "name":"Chocolate Milk",
+    "notes":"Add all ingredients to a soda siphon, and charge with one N2O cartridge. Serve with a side of Fernet Branca \"Oreo\" cookies. Makes 6 6oz drinks",
+    "source":"Jamie Boudreau", "user_id":null
+  }
+]

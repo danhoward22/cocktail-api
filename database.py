@@ -64,7 +64,7 @@ CREATE_DRINK_INGREDIENTS_QUERY = """
             is_garnish BOOLEAN DEFAULT FALSE,
             FOREIGN KEY (drink_id) REFERENCES drinks(id) ON DELETE CASCADE,
             FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE,
-            CONSTRAINT u_drink_ingredient UNIQUE (drink_id, ingredient_id)
+            CONSTRAINT u_drink_ingredient UNIQUE (drink_id, ingredient_id, is_garnish)
         )
     """
 

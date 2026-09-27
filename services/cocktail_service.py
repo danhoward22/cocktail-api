@@ -2,39 +2,35 @@ from sqlite3 import Connection, Row
 from models.cocktails import *
 from services.ingredient_service import get_parent_ingredient_names, get_ingredient
 
-def query_cocktails_list(
-    db: Connection,
+def query_cocktails_list(db: Connection, /, *,
     sort_by: str = "name"
 ) -> list[Cocktail]:
     
     cursor = db.cursor()
 
-    cocktail_list = []
-
     query = "SELECT * FROM drinks"
     if sort_by == "name": query += " ORDER BY `name` ASC"
     cursor.execute(query)
 
-    for drink in cursor.fetchall():
-        cocktail_list.append(build_cocktail(drink, db))
+    cocktail_list = [
+        build_cocktail(db, drink)
+        for drink in cursor.fetchall()
+    ]
 
     return cocktail_list
 
-def query_cocktail(
-    cocktail_id: int,
-    db: Connection
-) -> Cocktail | None:
+def query_cocktail(db: Connection, cocktail_id: int) -> Cocktail | None:
 
     cursor = db.cursor()
-    cursor.execute("SELECT * from drinks WHERE `id` = :cocktail_id", {"cocktail_id":cocktail_id})
+    cursor.execute(
+        "SELECT * from drinks WHERE `id` = :cocktail_id",
+        {"cocktail_id":cocktail_id}
+    )
     drink=cursor.fetchone()
 
-    return None if not drink else build_cocktail(drink, db)
+    return None if not drink else build_cocktail(db, drink)
 
-def build_cocktail(
-    drink: Row,
-    db: Connection
-) -> Cocktail:
+def build_cocktail(db: Connection, drink: Row) -> Cocktail:
 
     parts = []
     garnishes = []
@@ -43,21 +39,21 @@ def build_cocktail(
     cursor.execute(
         "SELECT * FROM drink_ingredients WHERE `drink_id` = :drink_id",
         {"drink_id": drink["id"]}
-        )
+    )
 
     for i in cursor.fetchall():
-        ingredient = get_ingredient(i["ingredient_id"], db)
+        ingredient = get_ingredient(db, i["ingredient_id"])
         item = {
             "id": i["ingredient_id"],
             "name":ingredient["name"],
             "qty":i["qty"]
-            }
+        }
         
         if i["is_garnish"]:
             garnishes.append(Garnish(**item))
         else:
             item["units"] = i["units"]
-            item["parents"] = get_parent_ingredient_names(ingredient["parent_id"], db)
+            item["parents"] = get_parent_ingredient_names(db, ingredient["parent_id"])
             parts.append(CocktailIngredient(**item))
 
     return Cocktail(
@@ -69,25 +65,122 @@ def build_cocktail(
         garnishes=garnishes
     )
 
-# upsert example for future drink_ingredients changes (best for MySQL 8+)
-# -- Step 1: Create a temporary table matching your schema
-# CREATE TEMPORARY TABLE temp_sync_table LIKE main_table;
+def insert_cocktail(db: Connection, cocktail: PayloadCocktail) -> Cocktail:
+    
+    cursor = db.cursor()
+    result = cursor.execute(
+        """
+        INSERT INTO drinks
+        (`name`, `source`, `notes`)
+        VALUES (:name, :source, :notes)
+        """,
+        {"name": cocktail.name, "source": cocktail.source, "notes": cocktail.notes}
+    )
 
-# -- Step 2: Bulk insert your HTTP list here using your backend framework
-# INSERT INTO temp_sync_table (id, name, value) VALUES (?, ?, ?), (?, ?, ?)...;
+    cocktail_id = result.lastrowid
 
-# -- Step 3: Delete rows from main table that aren't in the incoming payload
-# DELETE FROM main_table 
-# WHERE id NOT IN (SELECT id FROM temp_sync_table);
+    di_rows = [
+        {
+            "drink_id": cocktail_id,
+            "ingredient_id": i.id,
+            "qty": i.qty,
+            "units": i.units
+        }
+        for i in cocktail.ingredients
+    ]
 
-# -- Step 4: Insert new rows and update changed rows efficiently
-# INSERT INTO main_table (id, name, value)
-# SELECT id, name, value FROM temp_sync_table    
-# ON DUPLICATE KEY UPDATE 
-#     name = VALUES(name),
-#     value = VALUES(value);
+    cursor.executemany(
+        """
+        INSERT INTO drink_ingredients
+        (`drink_id`, `ingredient_id`, `qty`, `units`)
+        VALUES (:drink_id, :ingredient_id, :qty, :units)
+        """,
+        di_rows
+    )
 
-# -- Step 5: Clean up
-# DROP TEMPORARY TABLE temp_sync_table;
+    dg_rows = [
+        {
+            "drink_id": cocktail_id,
+            "ingredient_id": g.id,
+            "qty": g.qty,
+            "is_garnish": True
+        }
+        for g in cocktail.garnishes
+    ]
 
+    if dg_rows:
+        cursor.executemany(
+            """
+            INSERT INTO drink_ingredients
+            (`drink_id`, `ingredient_id`, `qty`, `is_garnish`)
+            VALUES (:drink_id, :ingredient_id, :qty, :is_garnish)
+            """,
+            dg_rows
+        )
 
+    db.commit()
+
+    return query_cocktail(db, cocktail_id)
+
+def upsert_cocktail(db: Connection, cocktail: Cocktail) -> Cocktail:
+    cursor = db.cursor()
+    cursor.execute(
+        """
+        UPDATE drinks
+        SET `name`=:name, `source`=:source, `notes`=:notes
+        WHERE `id`=:id
+        """,
+        {"name": cocktail.name, "source": cocktail.source, "notes": cocktail.notes, "id":cocktail.id}
+    )
+
+    di_rows = [
+        {
+            "drink_id": cocktail.id,
+            "ingredient_id": i.id,
+            "qty": i.qty,
+            "units": i.units,
+            "is_garnish": False
+        }
+        for i in cocktail.ingredients
+    ]
+
+    for g in cocktail.garnishes:
+        di_rows.append({
+            "drink_id": cocktail.id,
+            "ingredient_id": g.id,
+            "qty": g.qty,
+            "units": "",
+            "is_garnish": True
+        })
+
+    cursor.executemany(
+        """
+        INSERT INTO drink_ingredients
+        (`drink_id`, `ingredient_id`, `qty`, `units`, `is_garnish`)
+        VALUES (:drink_id, :ingredient_id, :qty, :units, :is_garnish)
+        ON CONFLICT (drink_id, ingredient_id, is_garnish)
+        DO UPDATE SET qty=:qty, units=:units
+        """,
+        di_rows
+    )
+
+    tuple_placeholders = ", ".join(["(?, ?, ?)"] * len(di_rows))
+    
+    # We must explicitly match the 3-column structure in the WHERE clause
+    delete_query = f"""
+        DELETE FROM drink_ingredients
+        WHERE (drink_id, ingredient_id, is_garnish)
+        NOT IN ({tuple_placeholders});
+    """
+
+    delete_params = [
+        val 
+        for row in di_rows 
+        for val in (row["drink_id"], row["ingredient_id"], row["is_garnish"])
+    ]
+
+    # Execute the query
+    cursor.execute(delete_query, delete_params)
+    db.commit()
+
+    return query_cocktail(db, cocktail.id)

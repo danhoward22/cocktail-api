@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlite3 import Connection
 # from supertokens_python.recipe.session.framework.fastapi import verify_session
 
-from models.cocktails import Cocktail, NewCocktail
+from models.cocktails import Cocktail, PayloadCocktail
 from database import get_dev_db
-from services.cocktail_service import query_cocktails_list, query_cocktail
+from services.cocktail_service import query_cocktails_list, query_cocktail, insert_cocktail, upsert_cocktail
 # router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"], dependencies=[Depends(verify_session)])
 router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"])
 
@@ -32,17 +32,14 @@ def get_cocktails(
     sort_by: str = Query("name", description="Field to sort by (name)"),
     db: Connection = Depends(get_dev_db)
 ):
-    return query_cocktails_list(
-        db=db,
-        sort_by=sort_by
-    )
+    return query_cocktails_list(db, sort_by=sort_by)
 
 @router.get("/{id}", response_model=Cocktail)
 def get_cocktail(
     id: int,
     db: Connection = Depends(get_dev_db)
 ):
-    cocktail = query_cocktail(id, db)
+    cocktail = query_cocktail(db, id)
     if not cocktail:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -50,19 +47,27 @@ def get_cocktail(
         )
     return cocktail
 
-@router.post("")
-def create_cocktail(payload: NewCocktail):
-    raise HTTPException(
-        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-        detail="POST not implemented yet. Please try again later."
-    )
+@router.post("", response_model=Cocktail)
+def create_cocktail(
+    cocktail: PayloadCocktail,
+    db: Connection = Depends(get_dev_db)
+):
+    return insert_cocktail(db, cocktail)
 
-@router.put("/{id}")
-def update_cocktail(id: int, payload: Cocktail):
-    raise HTTPException(
-        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-        detail="PUT not implemented yet. Please try again later."
-    )
+@router.put("/{id}", response_model=Cocktail)
+def update_cocktail(
+    id: int,
+    payload: PayloadCocktail,
+    db: Connection = Depends(get_dev_db)
+):
+    if payload.id and payload.id != id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The ID in the body does not match the ID in the URL path."
+        )
+    params = {"id":id, **payload.model_dump(exclude={"id"})}
+    cocktail = Cocktail(**params)
+    return upsert_cocktail(db, cocktail)
 
 @router.delete("/{id}")
 def delete_cocktail(id: int):

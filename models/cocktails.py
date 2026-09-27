@@ -2,27 +2,23 @@ from pydantic import BaseModel
 
 class CocktailIngredient(BaseModel):
     id: int
-    name: str
+    name: str | None = None
     parents: list[str] = []
     qty: float
     units: str
 
 class Garnish(BaseModel):
     id: int
-    name: str
+    name: str | None = None
     qty: float
 
-class NewCocktail(BaseModel):
+class PayloadCocktail(BaseModel):
+    id: int | None = None
     name: str
-    source: str | None = ""
-    notes: str | None = ""
+    source: str = ""
+    notes: str = ""
     ingredients: list[CocktailIngredient]
     garnishes: list[Garnish] = []
 
-class Cocktail(BaseModel):
+class Cocktail(PayloadCocktail):
     id: int
-    name: str
-    source: str | None = ""
-    notes: str | None = ""
-    ingredients: list[CocktailIngredient]
-    garnishes: list[Garnish] = []

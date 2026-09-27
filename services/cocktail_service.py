@@ -166,7 +166,6 @@ def upsert_cocktail(db: Connection, cocktail: Cocktail) -> Cocktail:
 
     tuple_placeholders = ", ".join(["(?, ?, ?)"] * len(di_rows))
     
-    # We must explicitly match the 3-column structure in the WHERE clause
     delete_query = f"""
         DELETE FROM drink_ingredients
         WHERE (drink_id, ingredient_id, is_garnish)
@@ -179,8 +178,20 @@ def upsert_cocktail(db: Connection, cocktail: Cocktail) -> Cocktail:
         for val in (row["drink_id"], row["ingredient_id"], row["is_garnish"])
     ]
 
-    # Execute the query
     cursor.execute(delete_query, delete_params)
     db.commit()
 
     return query_cocktail(db, cocktail.id)
+
+def delete_cocktail_record(db: Connection, cocktail_id: int) -> bool:
+
+    cursor = db.cursor()
+    cursor.execute(
+        "DELETE FROM drinks WHERE `id` = :id",
+        {"id": cocktail_id}
+    )
+    db.commit()
+
+    if not cursor.rowcount: return False
+
+    return True

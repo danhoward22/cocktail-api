@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, Response
 from sqlite3 import Connection
 # from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from models.cocktails import Cocktail, PayloadCocktail
 from database import get_dev_db
-from services.cocktail_service import query_cocktails_list, query_cocktail, insert_cocktail, upsert_cocktail
+from services.cocktail_service import query_cocktails_list, query_cocktail, insert_cocktail, upsert_cocktail, delete_cocktail_record
 # router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"], dependencies=[Depends(verify_session)])
 router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"])
 
@@ -70,8 +70,15 @@ def update_cocktail(
     return upsert_cocktail(db, cocktail)
 
 @router.delete("/{id}")
-def delete_cocktail(id: int):
-    raise HTTPException(
-        status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-        detail="DELETE not implemented yet. Please try again later."
-    )
+def delete_cocktail(
+    id: int,
+    db: Connection = Depends(get_dev_db)
+):
+    result = delete_cocktail_record(db, id)
+    if result:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cocktail ID does not exist."
+        )

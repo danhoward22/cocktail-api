@@ -39,9 +39,9 @@ DATA_DIR = Path(__file__).parent / "data"
 CREATE_DRINKS_QUERY = """
         CREATE TABLE IF NOT EXISTS drinks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name VARCHAR(128) NOT NULL,
-            source VARCHAR(128) NOT NULL DEFAULT '',
-            notes VARCHAR(500) NOT NULL DEFAULT '',
+            name VARCHAR(100) NOT NULL COLLATE NOCASE,
+            source VARCHAR(128) NOT NULL DEFAULT '' COLLATE NOCASE,
+            notes VARCHAR(500) NOT NULL DEFAULT '' COLLATE NOCASE,
             CONSTRAINT unique_drink UNIQUE (name, source)
         )
     """
@@ -49,7 +49,7 @@ CREATE_DRINKS_QUERY = """
 CREATE_INGREDIENTS_QUERY = """
         CREATE TABLE IF NOT EXISTS ingredients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name VARCHAR(128) UNIQUE NOT NULL,
+            name VARCHAR(128) UNIQUE NOT NULL COLLATE NOCASE,
             parent_id INTEGER DEFAULT NULL,
             FOREIGN KEY (parent_id) REFERENCES ingredients(id) ON DELETE SET NULL
         )
@@ -60,7 +60,7 @@ CREATE_DRINK_INGREDIENTS_QUERY = """
             drink_id INTEGER NOT NULL,
             ingredient_id INTEGER NOT NULL,
             qty FLOAT NOT NULL DEFAULT 0,
-            units VARCHAR(15) NOT NULL DEFAULT '',
+            units VARCHAR(15) NOT NULL DEFAULT '' COLLATE NOCASE,
             is_garnish BOOLEAN DEFAULT FALSE,
             FOREIGN KEY (drink_id) REFERENCES drinks(id) ON DELETE CASCADE,
             FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE,
@@ -81,6 +81,7 @@ def init_dev_db():
     global _db_conn
     conn = sqlite3.connect(":memory:", uri=True, check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON;") 
+    conn.execute("PRAGMA case_sensitive_like = OFF;") 
     conn.row_factory = sqlite3.Row 
     cursor = conn.cursor()
 

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, status, Response
+from fastapi import APIRouter, Depends, Query, Path, status, Response
 from sqlite3 import Connection
 # from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from models.cocktails import Cocktail, PayloadCocktail
 from database import get_dev_db
-from services.cocktail_service import query_cocktails_list, query_cocktail, insert_cocktail, upsert_cocktail, delete_cocktail_record
+from routers.errors import APIError
+from services.cocktail_service import check_for_duplicate_ingredients, query_cocktail, query_cocktails_list, insert_cocktail, upsert_cocktail, delete_cocktail_record
 # router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"], dependencies=[Depends(verify_session)])
 router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"])
 
@@ -36,14 +37,14 @@ def get_cocktails(
 
 @router.get("/{id}", response_model=Cocktail)
 def get_cocktail(
-    id: int,
+    id: int = Path(..., gt=0, description="The ID of the cocktail to get"),
     db: Connection = Depends(get_dev_db)
 ):
     cocktail = query_cocktail(db, id)
     if not cocktail:
-        raise HTTPException(
+        raise APIError(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cocktail ID does not exist."
+            message="Cocktail ID does not exist."
         )
     return cocktail
 
@@ -52,33 +53,91 @@ def create_cocktail(
     cocktail: PayloadCocktail,
     db: Connection = Depends(get_dev_db)
 ):
-    return insert_cocktail(db, cocktail)
+    errors = check_for_duplicate_ingredients(cocktail)
+    if errors:
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            message="Duplicate ingredients in cocktail.",
+            fields=errors
+        )
+
+    result = insert_cocktail(db, cocktail)
+    
+    if isinstance(result, str):
+        error_handler(result)
+
+    return result
 
 @router.put("/{id}", response_model=Cocktail)
 def update_cocktail(
-    id: int,
-    payload: PayloadCocktail,
+    cocktail: PayloadCocktail,
+    id: int = Path(..., gt=0, description="The ID of the cocktail to update"),
     db: Connection = Depends(get_dev_db)
 ):
-    if payload.id and payload.id != id:
-        raise HTTPException(
+    if cocktail.id and cocktail.id != id:
+        raise APIError(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The ID in the body does not match the ID in the URL path."
+            message="The ID in the body does not match the ID in the URL path."
         )
-    params = {"id":id, **payload.model_dump(exclude={"id"})}
+
+    errors = check_for_duplicate_ingredients(cocktail)
+    if errors:
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            message="Duplicate ingredients in cocktail.",
+            fields=errors
+        )
+    
+    params = {"id":id, **cocktail.model_dump(exclude={"id"})}
     cocktail = Cocktail(**params)
-    return upsert_cocktail(db, cocktail)
+    result = upsert_cocktail(db, cocktail)
+
+    if isinstance(result, str):
+        error_handler(result)
+    
+    return result
 
 @router.delete("/{id}")
 def delete_cocktail(
-    id: int,
+    id: int = Path(..., gt=0, description="The ID of the cocktail to delete"),
     db: Connection = Depends(get_dev_db)
 ):
     result = delete_cocktail_record(db, id)
     if result:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
-        raise HTTPException(
+        raise APIError(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cocktail ID does not exist."
+            message="Cocktail ID does not exist.",
+            fields={"id": "Cocktail ID does not exist."}
         )
+
+def error_handler(error: str):
+    if "Cocktail ID" in error:
+        raise APIError(
+            status_code=status.HTTP_404_NOT_FOUND,
+            message="Cocktail ID does not exist.",
+            fields={"id": "Cocktail ID does not exist."}
+        )
+    if "UNIQUE" in error:
+        raise APIError(
+            status_code=status.HTTP_409_CONFLICT,
+            message="Cocktail name and source already exists.",
+            fields={"name": "Cocktail name and source already exists."}
+        )
+    if "FOREIGN KEY" in error and "ingredient" in error:
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            message="Selected ingredient does not exist.",
+            fields={"ingredients": "Selected ingredient does not exist."}
+        )
+    if "FOREIGN KEY" in error and "garnish" in error:
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            message="Selected garnish does not exist.",
+            fields={"garnishes": "Selected garnish does not exist."}
+        )
+    raise APIError(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        message="Could not save cocktail."
+    )

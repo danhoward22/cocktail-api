@@ -5,7 +5,7 @@ from sqlite3 import Connection
 from models.cocktails import Cocktail, PayloadCocktail
 from database import get_dev_db
 from routers.errors import APIError
-from services.cocktail_service import check_for_duplicate_ingredients, query_cocktail, query_cocktails_list, insert_cocktail, upsert_cocktail, delete_cocktail_record
+from services.cocktail_service import query_cocktail, query_cocktails_list, insert_cocktail, upsert_cocktail, delete_cocktail_record
 # router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"], dependencies=[Depends(verify_session)])
 router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"])
 
@@ -42,10 +42,8 @@ def get_cocktail(
 ):
     cocktail = query_cocktail(db, id)
     if not cocktail:
-        raise APIError(
-            status_code=status.HTTP_404_NOT_FOUND,
-            message="Cocktail ID does not exist."
-        )
+        error_handler("Cocktail ID")
+
     return cocktail
 
 @router.post("", response_model=Cocktail)
@@ -53,14 +51,6 @@ def create_cocktail(
     cocktail: PayloadCocktail,
     db: Connection = Depends(get_dev_db)
 ):
-    errors = check_for_duplicate_ingredients(cocktail)
-    if errors:
-        raise APIError(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            message="Duplicate ingredients in cocktail.",
-            fields=errors
-        )
-
     result = insert_cocktail(db, cocktail)
     
     if isinstance(result, str):
@@ -75,19 +65,8 @@ def update_cocktail(
     db: Connection = Depends(get_dev_db)
 ):
     if cocktail.id and cocktail.id != id:
-        raise APIError(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            message="The ID in the body does not match the ID in the URL path."
-        )
+        error_handler("id mismatch")
 
-    errors = check_for_duplicate_ingredients(cocktail)
-    if errors:
-        raise APIError(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            message="Duplicate ingredients in cocktail.",
-            fields=errors
-        )
-    
     params = {"id":id, **cocktail.model_dump(exclude={"id"})}
     cocktail = Cocktail(**params)
     result = upsert_cocktail(db, cocktail)
@@ -103,16 +82,21 @@ def delete_cocktail(
     db: Connection = Depends(get_dev_db)
 ):
     result = delete_cocktail_record(db, id)
+    
+    if isinstance(result, str):
+        error_handler(result)
+    
     if result:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     else:
-        raise APIError(
-            status_code=status.HTTP_404_NOT_FOUND,
-            message="Cocktail ID does not exist.",
-            fields={"id": "Cocktail ID does not exist."}
-        )
+        error_handler("Cocktail ID")
 
 def error_handler(error: str):
+    if "id mismatch" in error:
+        raise APIError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="The ID in the body does not match the ID in the URL path."
+        )
     if "Cocktail ID" in error:
         raise APIError(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -137,6 +121,23 @@ def error_handler(error: str):
             message="Selected garnish does not exist.",
             fields={"garnishes": "Selected garnish does not exist."}
         )
+    if "Duplicate" in error:
+        message="Duplicate ingredients in cocktail."
+        fields={}
+        if "ingredient" in error:
+            fields["ingredients"] = "Duplicate ingredients in cocktail."
+        else:
+            message="Duplicate garnishes in cocktail."
+
+        if "garnish" in error:
+            fields["garnishes"] = "Duplicate garnishes in cocktail."
+
+        raise APIError(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            message=message,
+            fields=fields
+        )
+
     raise APIError(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         message="Could not save cocktail."

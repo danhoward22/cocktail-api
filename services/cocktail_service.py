@@ -1,9 +1,9 @@
 from sqlite3 import Connection, Row, IntegrityError
 from models.cocktails import *
-from services.ingredient_service import get_parent_ingredient_names, get_ingredient
+from services.ingredient_service import get_parent_ingredient_names, query_ingredient
 
-def check_for_duplicate_ingredients(cocktail: PayloadCocktail | Cocktail) -> dict:
-    errors = {}
+def check_for_duplicate_ingredients(cocktail: PayloadCocktail | Cocktail) -> str:
+    errors = ""
 
     # Check for duplicate ingredients
     i_id = []
@@ -15,7 +15,7 @@ def check_for_duplicate_ingredients(cocktail: PayloadCocktail | Cocktail) -> dic
             i_id.append(i.id)
 
     if i_dupe:
-        errors["ingredients"]="Duplicate ingredients present."
+        errors+="Duplicate ingredients. "
 
     g_id = []
     g_dupe = []
@@ -26,7 +26,7 @@ def check_for_duplicate_ingredients(cocktail: PayloadCocktail | Cocktail) -> dic
             g_id.append(g.id)
 
     if g_dupe:
-        errors["garnishes"]="Duplicate garnishes present."
+        errors+="Duplicate garnishes."
 
     return errors
 
@@ -71,7 +71,7 @@ def build_cocktail(db: Connection, drink: Row) -> Cocktail:
     )
 
     for i in cursor.fetchall():
-        ingredient = get_ingredient(db, i["ingredient_id"])
+        ingredient = query_ingredient(db, i["ingredient_id"])
         item = {
             "id": i["ingredient_id"],
             "name":ingredient["name"],
@@ -95,9 +95,12 @@ def build_cocktail(db: Connection, drink: Row) -> Cocktail:
     )
 
 def insert_cocktail(db: Connection, cocktail: PayloadCocktail) -> Cocktail | str:
+    dupes = check_for_duplicate_ingredients(cocktail)
+    if dupes:
+        return dupes
+
     cursor = db.cursor()
     try:
-        print("-1")
         cursor.execute(
             """
             INSERT INTO drinks
@@ -163,6 +166,10 @@ def insert_cocktail(db: Connection, cocktail: PayloadCocktail) -> Cocktail | str
     return query_cocktail(db, cocktail_id)
 
 def upsert_cocktail(db: Connection, cocktail: Cocktail) -> Cocktail | str:
+    dupes = check_for_duplicate_ingredients(cocktail)
+    if dupes:
+        return dupes
+    
     cursor = db.cursor()
     try:
         cursor.execute(
@@ -238,7 +245,7 @@ def upsert_cocktail(db: Connection, cocktail: Cocktail) -> Cocktail | str:
     db.commit()
     return query_cocktail(db, cocktail.id)
 
-def delete_cocktail_record(db: Connection, cocktail_id: int) -> bool:
+def delete_cocktail_record(db: Connection, cocktail_id: int) -> bool | str:
 
     cursor = db.cursor()
     try:

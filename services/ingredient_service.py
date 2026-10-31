@@ -1,14 +1,5 @@
-from sqlite3 import Connection
-
-from models.ingredients import Ingredient
-
-def get_ingredient(db: Connection, ingredient_id: int) -> Ingredient | None:
-    cursor = db.cursor()
-    cursor.execute(
-        "SELECT * FROM ingredients WHERE `id` = :id",
-        {"id":ingredient_id}
-    )
-    return cursor.fetchone()
+from sqlite3 import Connection, IntegrityError
+from models.ingredients import Ingredient, PayloadIngredient
 
 def get_parent_ingredient_names(db: Connection, parent_id: int | None) -> list[str]:
     if not parent_id:
@@ -39,3 +30,109 @@ def get_parent_ingredient_names(db: Connection, parent_id: int | None) -> list[s
 
     parent_names = [row[0] for row in cursor.fetchall()]
     return parent_names
+
+def query_ingredients_list(db: Connection, /, *,
+    sort_by: str = "name"
+) -> list[Ingredient]:
+    
+    cursor = db.cursor()
+
+    query = "SELECT * FROM ingredients"
+    if sort_by == "id": query += " ORDER BY `id` ASC"
+    if sort_by == "name": query += " ORDER BY `name` ASC"
+    cursor.execute(query)
+
+    ingredients_list = cursor.fetchall()
+
+    return ingredients_list
+
+def query_ingredient(db: Connection, ingredient_id: int) -> Ingredient | None:
+    cursor = db.cursor()
+    cursor.execute(
+        "SELECT * FROM ingredients WHERE `id` = :id",
+        {"id":ingredient_id}
+    )
+    return cursor.fetchone()
+
+def insert_ingredient(db: Connection, ingredient: PayloadIngredient) -> Ingredient | str:
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO ingredients
+            (`name`, `parent_id`)
+            VALUES (:name, :parent_id)
+            """,
+            {"name": ingredient.name, "parent_id": ingredient.parent_id}
+        )
+        ingredient_id = cursor.lastrowid
+    except IntegrityError as e:
+        print(e)
+        return str(e)
+
+    #check for circular parent_id
+
+    db.commit()
+    return query_ingredient(db, ingredient_id)
+
+def upsert_ingredient(db: Connection, ingredient: Ingredient) -> Ingredient | str:
+    cursor = db.cursor()
+    try:
+        #Check for circular reference
+        cursor.execute(
+            """
+            WITH RECURSIVE ParentTree AS (
+                SELECT id, parent_id
+                FROM ingredient
+                WHERE id = :proposed_parent_id
+                
+                UNION ALL
+                
+                SELECT i.id, i.parent_id
+                FROM ingredient i
+                JOIN ParentTree pt ON i.id = pt.parent_id
+            )
+            SELECT 1 
+            FROM ParentTree 
+            WHERE id = :current_ingredient_id;
+            """,
+            {"proposed_parent_id":ingredient.parent_id, "current_ingredient_id":ingredient.id}
+        )
+
+        if cursor.fetchone():
+            return "Parent ID is a circular reference"
+
+        cursor.execute(
+            """
+            UPDATE ingredients
+            SET `name`=:name, `parent_id`=:parent_id
+            WHERE `id`=:id
+            """,
+            {"name": ingredient.name, "source": ingredient.parent_id, "id":ingredient.id}
+        )
+
+        if not cursor.rowcount:
+            return "Ingredient ID does not exist"
+    except IntegrityError as e:
+        print(e)
+        return str(e)
+
+    db.commit()
+    return query_ingredient(db, ingredient.id)
+
+def delete_ingredient_record(db: Connection, ingredient_id: int) -> bool | str:
+
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            "DELETE FROM ingredients WHERE `id` = :id",
+            {"id": ingredient_id}
+        )
+        if not cursor.rowcount: return False
+    except IntegrityError as e:
+        print(e)
+        return str(e)
+
+    db.commit()
+
+    return True

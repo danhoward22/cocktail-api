@@ -42,7 +42,10 @@ def query_ingredients_list(db: Connection, /, *,
     if sort_by == "name": query += " ORDER BY `name` ASC"
     cursor.execute(query)
 
-    ingredients_list = cursor.fetchall()
+    ingredients_list = [
+        Ingredient(id=i["id"], name=i["name"], parent_id=i["parent_id"])
+        for i in cursor.fetchall()
+    ]
 
     return ingredients_list
 
@@ -52,7 +55,9 @@ def query_ingredient(db: Connection, ingredient_id: int) -> Ingredient | None:
         "SELECT * FROM ingredients WHERE `id` = :id",
         {"id":ingredient_id}
     )
-    return cursor.fetchone()
+    i = cursor.fetchone()
+
+    return None if not i else Ingredient(id=i["id"], name=i["name"], parent_id=i["parent_id"])
 
 def insert_ingredient(db: Connection, ingredient: PayloadIngredient) -> Ingredient | str:
     cursor = db.cursor()
@@ -66,14 +71,12 @@ def insert_ingredient(db: Connection, ingredient: PayloadIngredient) -> Ingredie
             {"name": ingredient.name, "parent_id": ingredient.parent_id}
         )
         ingredient_id = cursor.lastrowid
+        db.commit()
+
+        return query_ingredient(db, ingredient_id)
     except IntegrityError as e:
         print(e)
         return str(e)
-
-    #check for circular parent_id
-
-    db.commit()
-    return query_ingredient(db, ingredient_id)
 
 def upsert_ingredient(db: Connection, ingredient: Ingredient) -> Ingredient | str:
     cursor = db.cursor()
@@ -83,13 +86,13 @@ def upsert_ingredient(db: Connection, ingredient: Ingredient) -> Ingredient | st
             """
             WITH RECURSIVE ParentTree AS (
                 SELECT id, parent_id
-                FROM ingredient
+                FROM ingredients
                 WHERE id = :proposed_parent_id
                 
                 UNION ALL
                 
                 SELECT i.id, i.parent_id
-                FROM ingredient i
+                FROM ingredients i
                 JOIN ParentTree pt ON i.id = pt.parent_id
             )
             SELECT 1 
@@ -108,16 +111,17 @@ def upsert_ingredient(db: Connection, ingredient: Ingredient) -> Ingredient | st
             SET `name`=:name, `parent_id`=:parent_id
             WHERE `id`=:id
             """,
-            {"name": ingredient.name, "source": ingredient.parent_id, "id":ingredient.id}
+            {"name": ingredient.name, "parent_id": ingredient.parent_id, "id":ingredient.id}
         )
 
         if not cursor.rowcount:
             return "Ingredient ID does not exist"
+
+        db.commit()
     except IntegrityError as e:
         print(e)
         return str(e)
 
-    db.commit()
     return query_ingredient(db, ingredient.id)
 
 def delete_ingredient_record(db: Connection, ingredient_id: int) -> bool | str:

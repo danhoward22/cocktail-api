@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, Path, status, Response
 from sqlite3 import Connection
 # from supertokens_python.recipe.session.framework.fastapi import verify_session
 
-from models.cocktails import Cocktail, PayloadCocktail
+from models.cocktails import Cocktail, PayloadCocktail, CocktailPage
 from database import get_dev_db
 from routers.errors import APIError
 from services.cocktail_service import query_cocktail, query_cocktails_list, insert_cocktail, upsert_cocktail, delete_cocktail_record
@@ -28,18 +28,30 @@ router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"])
 #   },
 # ]
 
-@router.get("", response_model=list[Cocktail])
+@router.get("", response_model=CocktailPage)
 def get_cocktails(
-    sort_by: str = Query("name", description="Field to sort by (name)"),
+    response: Response,
+    sort: str = Query("id", description="Field to sort by (id or name)"),
+    limit: int = Query(500, gt=0, le=500, description="Cocktail count limit per page"),
+    offset: int = Query(0, ge=0, description="Page offset to return"),
     db: Connection = Depends(get_dev_db)
 ):
-    return query_cocktails_list(db, sort_by=sort_by)
+    response.headers["Cache-Control"] = "public, max-age=300"
+    cocktails, total = query_cocktails_list(db, sort_by=sort, limit=limit, offset=offset)
+
+    result = CocktailPage(total=total, limit=limit, offset=offset, cocktails=cocktails)
+    if isinstance(result, str):
+        error_handler(result)
+
+    return result
 
 @router.get("/{id}", response_model=Cocktail)
 def get_cocktail(
+    response: Response,
     id: int = Path(..., gt=0, description="The ID of the cocktail to get"),
     db: Connection = Depends(get_dev_db)
 ):
+    response.headers["Cache-Control"] = "public, max-age=300"
     cocktail = query_cocktail(db, id)
     if not cocktail:
         error_handler("Cocktail ID")

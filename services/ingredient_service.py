@@ -32,22 +32,27 @@ def get_parent_ingredient_names(db: Connection, parent_id: int | None) -> list[s
     return parent_names
 
 def query_ingredients_list(db: Connection, /, *,
+    q: str = "",
     sort_by: str = "name"
-) -> list[Ingredient]:
+) -> list[Ingredient] | str:
     
     cursor = db.cursor()
+    try:
+        query = "SELECT * FROM ingredients"
+        if q: query += " WHERE `name` LIKE :search"
+        if sort_by == "id": query += " ORDER BY `id` ASC"
+        elif sort_by == "name": query += " ORDER BY `name` ASC"
+        cursor.execute(query, {"search": '%' + q + '%'})
 
-    query = "SELECT * FROM ingredients"
-    if sort_by == "id": query += " ORDER BY `id` ASC"
-    if sort_by == "name": query += " ORDER BY `name` ASC"
-    cursor.execute(query)
+        ingredients_list = [
+            Ingredient(id=i["id"], name=i["name"], parent_id=i["parent_id"])
+            for i in cursor.fetchall()
+        ]
 
-    ingredients_list = [
-        Ingredient(id=i["id"], name=i["name"], parent_id=i["parent_id"])
-        for i in cursor.fetchall()
-    ]
-
-    return ingredients_list
+        return ingredients_list
+    except IntegrityError as e:
+        print(e)
+        return str(e)
 
 def query_ingredient(db: Connection, ingredient_id: int) -> Ingredient | None:
     cursor = db.cursor()

@@ -23,3 +23,9 @@ class PayloadCocktail(BaseModel):
 
 class Cocktail(PayloadCocktail):
     id: int = Field(..., gt=0)
+
+class CocktailPage(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    cocktails: list[Cocktail] = []

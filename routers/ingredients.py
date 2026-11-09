@@ -16,16 +16,27 @@ router = APIRouter(prefix="/api/ingredients", tags=["Ingredients"])
 
 @router.get("", response_model=list[Ingredient])
 def get_ingredients(
-    sort_by: str = Query("name", description="Field to sort by (name)"),
+    response: Response,
+    q: str = Query("", description="Query string to search"),
+    sort: str = Query("id", description="Field to sort by (id or name)"),
     db: Connection = Depends(get_dev_db)
 ):
-    return query_ingredients_list(db, sort_by=sort_by)
+    response.headers["Cache-Control"] = "public, max-age=300"
+    #TODO: add limit if ingredient list grows beyond 50k
+    
+    result = query_ingredients_list(db, q=q, sort_by=sort)
+    if isinstance(result, str):
+        error_handler(result)
+
+    return result
 
 @router.get("/{id}", response_model=Ingredient)
 def get_ingredient(
+    response: Response,
     id: int = Path(..., gt=0, description="The ID of the ingredient to get"),
     db: Connection = Depends(get_dev_db)
 ):
+    response.headers["Cache-Control"] = "public, max-age=300"
     ingredient = query_ingredient(db, id)
 
     if not ingredient:

@@ -31,22 +31,41 @@ def check_for_duplicate_ingredients(cocktail: PayloadCocktail | Cocktail) -> str
     return errors
 
 def query_cocktails_list(db: Connection, /, *,
-    sort_by: str = "name"
-) -> list[Cocktail]:
+    sort_by: str = "name",
+    limit: int = 500,
+    offset: int = 0
+) -> tuple[list[Cocktail], int] | str:
     
     cursor = db.cursor()
 
-    query = "SELECT * FROM drinks"
-    if sort_by == "id": query += " ORDER BY `id` ASC"
-    if sort_by == "name": query += " ORDER BY `name` ASC"
-    cursor.execute(query)
+    try:
+        tquery = "SELECT COUNT(*) FROM drinks"
+        if sort_by == "id": tquery += " ORDER BY `id` ASC"
+        elif sort_by == "name": tquery += " ORDER BY `name` ASC"
+        
+        cursor.execute(tquery)
+        total=cursor.fetchone()[0]
 
-    cocktail_list = [
-        build_cocktail(db, drink)
-        for drink in cursor.fetchall()
-    ]
+        if total <= limit * offset:
+            return [], total
 
-    return cocktail_list
+        query = "SELECT * FROM drinks"
+        if sort_by == "id": query += " ORDER BY `id` ASC"
+        elif sort_by == "name": query += " ORDER BY `name` ASC"
+        query += " LIMIT :limit OFFSET :offset"
+
+        cursor.execute("" + query,{"limit": limit, "offset": offset})
+
+        cocktail_list = [
+            build_cocktail(db, drink)
+            for drink in cursor.fetchall()
+        ]
+
+        return cocktail_list, total
+    except IntegrityError as e:
+        print(e)
+        return str(e)
+
 
 def query_cocktail(db: Connection, cocktail_id: int) -> Cocktail | None:
 
@@ -74,7 +93,7 @@ def build_cocktail(db: Connection, drink: Row) -> Cocktail:
         ingredient = query_ingredient(db, i["ingredient_id"])
         item = {
             "id": i["ingredient_id"],
-            "name":ingredient["name"],
+            "name":ingredient.name,
             "qty":i["qty"]
         }
         
@@ -82,7 +101,7 @@ def build_cocktail(db: Connection, drink: Row) -> Cocktail:
             garnishes.append(Garnish(**item))
         else:
             item["units"] = i["units"]
-            item["parents"] = get_parent_ingredient_names(db, ingredient["parent_id"])
+            item["parents"] = get_parent_ingredient_names(db, ingredient.parent_id)
             parts.append(CocktailIngredient(**item))
 
     return Cocktail(

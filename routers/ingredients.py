@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, Query, Path, status, Response
 from sqlite3 import Connection
-# from supertokens_python.recipe.session.framework.fastapi import verify_session
+from supertokens_python.recipe.session import SessionContainer
+from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from models.ingredients import Ingredient, PayloadIngredient
 from database import get_dev_db
 from routers.errors import APIError
 from services.ingredient_service import query_ingredient, query_ingredients_list, insert_ingredient, upsert_ingredient, delete_ingredient_record
-# router = APIRouter(prefix="/api/ingredients", tags=["Ingredients"], dependencies=[Depends(verify_session)])
+
 router = APIRouter(prefix="/api/ingredients", tags=["Ingredients"])
 
 # Object structure returned in API
@@ -44,10 +45,12 @@ def get_ingredient(
     
     return ingredient
 
+# @router.post("", response_model=Ingredient, dependencies=[Depends(verify_session)])
 @router.post("", response_model=Ingredient)
 def create_ingredient(
     ingredient: PayloadIngredient,
-    db: Connection = Depends(get_dev_db)
+    db: Connection = Depends(get_dev_db),
+    session: SessionContainer = Depends(verify_session())
 ):
     result = insert_ingredient(db, ingredient)
     
@@ -56,11 +59,13 @@ def create_ingredient(
 
     return result
 
+# @router.put("/{id}", response_model=Ingredient, dependencies=[Depends(verify_session)])
 @router.put("/{id}", response_model=Ingredient)
 def update_ingredient(
     ingredient: PayloadIngredient,
     id: int = Path(..., gt=0, description="The ID of the ingredient to update"),
-    db: Connection = Depends(get_dev_db)
+    db: Connection = Depends(get_dev_db),
+    session: SessionContainer = Depends(verify_session())
 ):
     if ingredient.id and ingredient.id != id:
         error_handler("id mismatch")
@@ -74,10 +79,12 @@ def update_ingredient(
     
     return result
 
+# @router.delete("/{id}", dependencies=[Depends(verify_session)])
 @router.delete("/{id}")
 def delete_ingredient(
     id: int = Path(..., gt=0, description="The ID of the ingredient to delete"),
-    db: Connection = Depends(get_dev_db)
+    db: Connection = Depends(get_dev_db),
+    session: SessionContainer = Depends(verify_session())
 ):
     result = delete_ingredient_record(db, id)
     

@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, Query, Path, status, Response
 from sqlite3 import Connection
-# from supertokens_python.recipe.session.framework.fastapi import verify_session
+from supertokens_python.recipe.session import SessionContainer
+from supertokens_python.recipe.session.framework.fastapi import verify_session
 
 from models.cocktails import Cocktail, PayloadCocktail, CocktailPage
 from database import get_dev_db
 from routers.errors import APIError
 from services.cocktail_service import query_cocktail, query_cocktails_list, insert_cocktail, upsert_cocktail, delete_cocktail_record
-# router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"], dependencies=[Depends(verify_session)])
+
 router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"])
 
 # Object structure returned in API
@@ -58,10 +59,12 @@ def get_cocktail(
 
     return cocktail
 
+# @router.post("", response_model=Cocktail, dependencies=[Depends(verify_session)])
 @router.post("", response_model=Cocktail)
 def create_cocktail(
     cocktail: PayloadCocktail,
-    db: Connection = Depends(get_dev_db)
+    db: Connection = Depends(get_dev_db),
+    session: SessionContainer = Depends(verify_session()),
 ):
     result = insert_cocktail(db, cocktail)
     
@@ -70,11 +73,13 @@ def create_cocktail(
 
     return result
 
+# @router.put("/{id}", response_model=Cocktail, dependencies=[Depends(verify_session)])
 @router.put("/{id}", response_model=Cocktail)
 def update_cocktail(
     cocktail: PayloadCocktail,
     id: int = Path(..., gt=0, description="The ID of the cocktail to update"),
-    db: Connection = Depends(get_dev_db)
+    db: Connection = Depends(get_dev_db),
+    session: SessionContainer = Depends(verify_session())
 ):
     if cocktail.id and cocktail.id != id:
         error_handler("id mismatch")
@@ -88,10 +93,12 @@ def update_cocktail(
     
     return result
 
+# @router.delete("/{id}", dependencies=[Depends(verify_session)])
 @router.delete("/{id}")
 def delete_cocktail(
     id: int = Path(..., gt=0, description="The ID of the cocktail to delete"),
-    db: Connection = Depends(get_dev_db)
+    db: Connection = Depends(get_dev_db),
+    session: SessionContainer = Depends(verify_session())
 ):
     result = delete_cocktail_record(db, id)
     

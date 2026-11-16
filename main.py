@@ -13,6 +13,7 @@ from bootstrap.supertokens import init_supertokens
 from bootstrap.lifespan import lifespan
 from routers.cocktails import router as cocktail_router
 from routers.ingredients import router as ingredient_router
+from routers.create_user import router as create_user
 from routers.errors import APIError, error_body
 
 env_type = os.getenv("APP_ENV")
@@ -68,6 +69,7 @@ async def http_handler(request: Request, exc: StarletteHTTPException):
         content=error_body(exc.status_code, str(exc.detail)),
     )
 
+app.include_router(create_user)
 app.include_router(cocktail_router)
 app.include_router(ingredient_router)
 

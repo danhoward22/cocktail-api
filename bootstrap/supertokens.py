@@ -3,7 +3,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from supertokens_python import init, InputAppInfo, SupertokensConfig
-from supertokens_python.recipe import passwordless, session, dashboard, usermetadata
+from supertokens_python.recipe import passwordless, session, dashboard, usermetadata, userroles
 from supertokens_python.recipe.passwordless import ContactEmailOrPhoneConfig
 
 from supertokens_python.asyncio import list_users_by_account_info
@@ -97,6 +97,7 @@ def init_supertokens():
         ),
         recipe_list=[
             session.init(),
+            userroles.init(),
             usermetadata.init(),
             passwordless.init(
                 flow_type="USER_INPUT_CODE",

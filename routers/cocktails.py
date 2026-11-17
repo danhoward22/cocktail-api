@@ -6,7 +6,7 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 from models.cocktails import Cocktail, PayloadCocktail, CocktailPage
 from database import get_dev_db
 from routers.errors import APIError
-from services.cocktail_service import query_cocktail, query_cocktails_list, insert_cocktail, upsert_cocktail, delete_cocktail_record
+from services.cocktails import query_cocktail, query_cocktails_list, insert_cocktail, upsert_cocktail, delete_cocktail_record
 
 router = APIRouter(prefix="/api/cocktails", tags=["Cocktails"])
 
@@ -59,7 +59,6 @@ def get_cocktail(
 
     return cocktail
 
-# @router.post("", response_model=Cocktail, dependencies=[Depends(verify_session)])
 @router.post("", response_model=Cocktail)
 def create_cocktail(
     cocktail: PayloadCocktail,
@@ -73,7 +72,6 @@ def create_cocktail(
 
     return result
 
-# @router.put("/{id}", response_model=Cocktail, dependencies=[Depends(verify_session)])
 @router.put("/{id}", response_model=Cocktail)
 def update_cocktail(
     cocktail: PayloadCocktail,
@@ -93,7 +91,6 @@ def update_cocktail(
     
     return result
 
-# @router.delete("/{id}", dependencies=[Depends(verify_session)])
 @router.delete("/{id}")
 def delete_cocktail(
     id: int = Path(..., gt=0, description="The ID of the cocktail to delete"),

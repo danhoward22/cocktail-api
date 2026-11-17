@@ -1,6 +1,6 @@
 from sqlite3 import Connection, Row, IntegrityError
 from models.cocktails import *
-from services.ingredient_service import get_parent_ingredient_names, query_ingredient
+from services.ingredients import get_parent_ingredient_names, query_ingredient
 
 def check_for_duplicate_ingredients(cocktail: PayloadCocktail | Cocktail) -> str:
     errors = ""

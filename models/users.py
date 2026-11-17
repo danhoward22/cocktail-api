@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
-class CreateUserResponse(BaseModel):
+class UserResponse(BaseModel):
     success: bool
+    message: str | None = None
     link: str | None = None

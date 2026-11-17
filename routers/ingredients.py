@@ -6,7 +6,7 @@ from supertokens_python.recipe.session.framework.fastapi import verify_session
 from models.ingredients import Ingredient, PayloadIngredient
 from database import get_dev_db
 from routers.errors import APIError
-from services.ingredient_service import query_ingredient, query_ingredients_list, insert_ingredient, upsert_ingredient, delete_ingredient_record
+from services.ingredients import query_ingredient, query_ingredients_list, insert_ingredient, upsert_ingredient, delete_ingredient_record
 
 router = APIRouter(prefix="/api/ingredients", tags=["Ingredients"])
 
@@ -45,7 +45,6 @@ def get_ingredient(
     
     return ingredient
 
-# @router.post("", response_model=Ingredient, dependencies=[Depends(verify_session)])
 @router.post("", response_model=Ingredient)
 def create_ingredient(
     ingredient: PayloadIngredient,
@@ -59,7 +58,6 @@ def create_ingredient(
 
     return result
 
-# @router.put("/{id}", response_model=Ingredient, dependencies=[Depends(verify_session)])
 @router.put("/{id}", response_model=Ingredient)
 def update_ingredient(
     ingredient: PayloadIngredient,
@@ -79,7 +77,6 @@ def update_ingredient(
     
     return result
 
-# @router.delete("/{id}", dependencies=[Depends(verify_session)])
 @router.delete("/{id}")
 def delete_ingredient(
     id: int = Path(..., gt=0, description="The ID of the ingredient to delete"),
